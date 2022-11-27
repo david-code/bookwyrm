@@ -34,6 +34,18 @@ class BookSearch(TestCase):
             isbn_10="022222222X",
         )
 
+        self.user = models.User.objects.create(
+            username="tester", email="test@example.org"
+        )
+        self.shelf = models.Shelf.objects.create(name="My Test Shelf", user=self.user)
+        self.my_work = models.Work.objects.create(title="My Own Edition")
+        self.my_edition = models.Edition.objects.create(
+            title="My Very Own Edition", parent_work=self.my_work, isbn_10="1212121212"
+        )
+        models.ShelfBook.objects.create(
+            book=self.my_edition, shelf=self.shelf, user=self.user
+        )
+
     def test_search(self):
         """search for a book in the db"""
         # title/author
@@ -134,3 +146,17 @@ class BookSearch(TestCase):
         # there's really not much to test here, it's just a dataclass
         self.assertEqual(result.confidence, 1)
         self.assertEqual(result.title, "Title")
+
+    def test_search_user_shelves_one_match(self):
+        """limit book search result to user's shelves"""
+        print(self.user, models.User.objects.first(), models.Shelf.objects.all())
+        results = book_search.search_user_shelves(user=self.user, query="Edition")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], self.my_edition)
+
+    def test_search_user_shelves_no_match(self):
+        """make sure no result found if not in shelves"""
+        results = book_search.search_user_shelves(
+            user=self.user, query="Another Edition"
+        )
+        self.assertEqual(len(results), 0)

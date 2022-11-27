@@ -139,3 +139,12 @@ class SearchResult:
         serialized = asdict(self)
         del serialized["connector"]
         return serialized
+
+
+def search_user_shelves(user, query):
+    search_query = SearchQuery(query, config="simple") | SearchQuery(
+        query, config="english"
+    )
+    return models.Edition.objects.filter(
+        shelfbook__user=user, search_vector=search_query
+    )
