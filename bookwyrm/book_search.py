@@ -15,6 +15,19 @@ from bookwyrm.settings import MEDIA_FULL_URL
 def search(query, min_confidence=0, filters=None, return_first=False):
     """search your local database"""
     filters = filters or []
+    return _generic_search(query, min_confidence, filters, return_first, dedup=True)
+
+
+def search_user_shelves(
+    query, user, min_confidence=0, filters=None, return_first=False
+):
+    filters = (filters or []) + [Q(shelfbook__user=user)]
+    return _generic_search(query, min_confidence, filters, return_first, dedup=False)
+
+
+def _generic_search(
+    query, min_confidence=0, filters=None, return_first=False, dedup=True
+):
     if not query:
         return []
     query = query.strip()
@@ -87,7 +100,10 @@ def search_identifiers(query, *filters, return_first=False):
     return results
 
 
-def search_title_author(query, min_confidence, *filters, return_first=False):
+def search_title_author(
+    query, min_confidence, *filters, return_first=False, dedup=True
+):
+
     """searches for title and author"""
     query = SearchQuery(query, config="simple") | SearchQuery(query, config="english")
     results = (
@@ -96,6 +112,9 @@ def search_title_author(query, min_confidence, *filters, return_first=False):
         .filter(rank__gt=min_confidence)
         .order_by("-rank")
     )
+
+    if not dedup:
+        return list(results)
 
     # when there are multiple editions of the same work, pick the closest
     editions_of_work = results.values_list("parent_work__id", flat=True).distinct()
@@ -139,12 +158,3 @@ class SearchResult:
         serialized = asdict(self)
         del serialized["connector"]
         return serialized
-
-
-def search_user_shelves(user, query):
-    search_query = SearchQuery(query, config="simple") | SearchQuery(
-        query, config="english"
-    )
-    return models.Edition.objects.filter(
-        shelfbook__user=user, search_vector=search_query
-    )
