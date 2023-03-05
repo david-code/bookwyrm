@@ -149,7 +149,6 @@ class BookSearch(TestCase):
 
     def test_search_user_shelves_one_match(self):
         """limit book search result to user's shelves"""
-        print(self.user, models.User.objects.first(), models.Shelf.objects.all())
         results = book_search.search_user_shelves(user=self.user, query="Edition")
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0], self.my_edition)

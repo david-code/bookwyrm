@@ -11,7 +11,7 @@ from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 
-from bookwyrm import forms, models
+from bookwyrm import book_search, forms, models
 from bookwyrm.activitypub import ActivitypubResponse
 from bookwyrm.settings import PAGE_LENGTH
 from bookwyrm.views.helpers import is_api_request, get_user_from_username
@@ -21,7 +21,7 @@ from bookwyrm.views.helpers import is_api_request, get_user_from_username
 class Shelf(View):
     """shelf page"""
 
-    def get(self, request, username, shelf_identifier=None):
+    def get(self, request, username, shelf_identifier=None, search=None):
         """display a shelf"""
         user = get_user_from_username(request.user, username)
 
@@ -71,6 +71,8 @@ class Shelf(View):
         reading = reading.filter(user=user, book__id=OuterRef("id")).order_by(
             "start_date"
         )
+
+        books = book_search.search_user_shelves(books, user, filters=search)
 
         books = books.annotate(shelved_date=Max("shelfbook__shelved_date"))
         books = books.annotate(

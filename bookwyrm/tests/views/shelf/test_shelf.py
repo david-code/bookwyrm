@@ -138,6 +138,19 @@ class ShelfViews(TestCase):
         validate_html(result.render())
         self.assertEqual(result.status_code, 200)
 
+    def test_shelf_page_search(self):
+        """there are so many views, this just makes sure it LOADS"""
+        view = views.Shelf.as_view()
+        shelf = self.local_user.shelf_set.first()
+        request = self.factory.get("", {"search": "Example"})
+        request.user = self.local_user
+        with patch("bookwyrm.views.shelf.shelf.is_api_request") as is_api:
+            is_api.return_value = False
+            result = view(request, self.local_user.username, shelf.identifier)
+        self.assertIsInstance(result, TemplateResponse)
+        validate_html(result.render())
+        self.assertEqual(result.status_code, 200)
+
     def test_shelf_page(self, *_):
         """there are so many views, this just makes sure it LOADS"""
         view = views.Shelf.as_view()
