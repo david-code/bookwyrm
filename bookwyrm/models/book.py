@@ -4,7 +4,6 @@ import re
 from django.contrib.postgres.search import SearchVectorField
 from django.contrib.postgres.indexes import GinIndex
 from django.core.cache import cache
-from django.core.cache.utils import make_template_fragment_key
 from django.db import models, transaction
 from django.db.models import Prefetch
 from django.dispatch import receiver
@@ -55,6 +54,12 @@ class BookDataModel(ObjectMixin, BookWyrmModel):
     asin = fields.CharField(
         max_length=255, blank=True, null=True, deduplication_field=True
     )
+    aasin = fields.CharField(
+        max_length=255, blank=True, null=True, deduplication_field=True
+    )
+    isfdb = fields.CharField(
+        max_length=255, blank=True, null=True, deduplication_field=True
+    )
     search_vector = SearchVectorField(null=True)
 
     last_edited_by = fields.ForeignKey(
@@ -72,6 +77,11 @@ class BookDataModel(ObjectMixin, BookWyrmModel):
     def inventaire_link(self):
         """generate the url from the inventaire id"""
         return f"https://inventaire.io/entity/{self.inventaire_id}"
+
+    @property
+    def isfdb_link(self):
+        """generate the url from the isfdb id"""
+        return f"https://www.isfdb.org/cgi-bin/title.cgi?{self.isfdb}"
 
     class Meta:
         """can't initialize this model, that wouldn't make sense"""
@@ -196,10 +206,6 @@ class Book(BookDataModel):
         """can't be abstract for query reasons, but you shouldn't USE it"""
         if not isinstance(self, Edition) and not isinstance(self, Work):
             raise ValueError("Books should be added as Editions or Works")
-
-        # clear template caches
-        cache_key = make_template_fragment_key("titleby", [self.id])
-        cache.delete(cache_key)
 
         return super().save(*args, **kwargs)
 

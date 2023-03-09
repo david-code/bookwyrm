@@ -3,9 +3,9 @@ import re
 from urllib.parse import urlparse
 
 from django.apps import apps
-from django.contrib.auth.models import AbstractUser, Group
+from django.contrib.auth.models import AbstractUser
 from django.contrib.postgres.fields import ArrayField, CICharField
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ObjectDoesNotExist
 from django.dispatch import receiver
 from django.db import models, transaction
 from django.utils import timezone
@@ -356,8 +356,14 @@ class User(OrderedCollectionPageMixin, AbstractUser):
 
             # make users editors by default
             try:
-                self.groups.add(Group.objects.get(name="editor"))
-            except Group.DoesNotExist:
+                group = (
+                    apps.get_model("bookwyrm.SiteSettings")
+                    .objects.get()
+                    .default_user_auth_group
+                )
+                if group:
+                    self.groups.add(group)
+            except ObjectDoesNotExist:
                 # this should only happen in tests
                 pass
 
@@ -373,6 +379,7 @@ class User(OrderedCollectionPageMixin, AbstractUser):
         """We don't actually delete the database entry"""
         # pylint: disable=attribute-defined-outside-init
         self.is_active = False
+        self.avatar = ""
         # skip the logic in this class's save()
         super().save(*args, **kwargs)
 
@@ -390,7 +397,10 @@ class User(OrderedCollectionPageMixin, AbstractUser):
         self.is_active = True
         self.deactivation_reason = None
         self.allow_reactivation = False
-        super().save(broadcast=False)
+        super().save(
+            broadcast=False,
+            update_fields=["deactivation_reason", "is_active", "allow_reactivation"],
+        )
 
     @property
     def local_path(self):
@@ -522,6 +532,11 @@ def preview_image(instance, *args, **kwargs):
     """create preview images when user is updated"""
     if not ENABLE_PREVIEW_IMAGES:
         return
+
+    # don't call the task for remote users
+    if not instance.local:
+        return
+
     changed_fields = instance.field_tracker.changed()
 
     if len(changed_fields) > 0:

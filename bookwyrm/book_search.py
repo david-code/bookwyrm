@@ -33,7 +33,7 @@ def _generic_search(
     query = query.strip()
 
     results = None
-    # first, try searching unqiue identifiers
+    # first, try searching unique identifiers
     # unique identifiers never have spaces, title/author usually do
     if not " " in query:
         results = search_identifiers(query, *filters, return_first=return_first, start=start)

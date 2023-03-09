@@ -86,6 +86,16 @@ urlpatterns = [
         r"^settings/dashboard/?$", views.Dashboard.as_view(), name="settings-dashboard"
     ),
     re_path(r"^settings/site-settings/?$", views.Site.as_view(), name="settings-site"),
+    re_path(
+        r"^settings/site-registration/?$",
+        views.RegistrationLimited.as_view(),
+        name="settings-registration-limited",
+    ),
+    re_path(
+        r"^settings/site-registration-admin/?$",
+        views.Registration.as_view(),
+        name="settings-registration",
+    ),
     re_path(r"^settings/themes/?$", views.Themes.as_view(), name="settings-themes"),
     re_path(
         r"^settings/themes/(?P<theme_id>\d+)/delete/?$",
@@ -119,7 +129,7 @@ urlpatterns = [
     ),
     re_path(
         r"^settings/email-preview/?$",
-        views.admin.site.email_preview,
+        views.admin.email_config.email_preview,
         name="settings-email-preview",
     ),
     re_path(
@@ -134,6 +144,11 @@ urlpatterns = [
         r"^settings/users/(?P<user>\d+)/?$",
         views.UserAdmin.as_view(),
         name="settings-user",
+    ),
+    re_path(
+        r"^settings/users/(?P<user>\d+)/activate/?$",
+        views.ActivateUserAdmin.as_view(),
+        name="settings-activate-user",
     ),
     re_path(
         r"^settings/federation/(?P<status>(federated|blocked))?/?$",
@@ -312,12 +327,26 @@ urlpatterns = [
         name="settings-imports-enable",
     ),
     re_path(
+        r"^settings/imports/set-limit/?$",
+        views.set_import_size_limit,
+        name="settings-imports-set-limit",
+    ),
+    re_path(
         r"^settings/celery/?$", views.CeleryStatus.as_view(), name="settings-celery"
+    ),
+    re_path(
+        r"^settings/celery/ping/?$", views.celery_ping, name="settings-celery-ping"
+    ),
+    re_path(
+        r"^settings/email-config/?$",
+        views.EmailConfig.as_view(),
+        name="settings-email-config",
     ),
     # landing pages
     re_path(r"^about/?$", views.about, name="about"),
     re_path(r"^privacy/?$", views.privacy, name="privacy"),
     re_path(r"^conduct/?$", views.conduct, name="conduct"),
+    re_path(r"^impressum/?$", views.impressum, name="impressum"),
     path("", views.Home.as_view(), name="landing"),
     re_path(r"^discover/?$", views.Discover.as_view(), name="discover"),
     re_path(r"^notifications/?$", views.Notifications.as_view(), name="notifications"),
@@ -404,11 +433,31 @@ urlpatterns = [
     re_path(rf"^@(?P<username>{regex.USERNAME})$", views.user_redirect),
     re_path(rf"{USER_PATH}/rss/?$", views.rss_feed.RssFeed(), name="user-rss"),
     re_path(
+        rf"{USER_PATH}/rss-reviews/?$",
+        views.rss_feed.RssReviewsOnlyFeed(),
+        name="user-reviews-rss",
+    ),
+    re_path(
+        rf"{USER_PATH}/rss-quotes/?$",
+        views.rss_feed.RssQuotesOnlyFeed(),
+        name="user-quotes-rss",
+    ),
+    re_path(
+        rf"{USER_PATH}/rss-comments/?$",
+        views.rss_feed.RssCommentsOnlyFeed(),
+        name="user-comments-rss",
+    ),
+    re_path(
         rf"{USER_PATH}/(?P<direction>(followers|following))(.json)?/?$",
         views.Relationships.as_view(),
         name="user-relationships",
     ),
     re_path(r"^hide-suggestions/?$", views.hide_suggestions, name="hide-suggestions"),
+    re_path(
+        rf"{USER_PATH}/reviews-comments",
+        views.UserReviewsComments.as_view(),
+        name="user-reviews-comments",
+    ),
     # groups
     re_path(rf"{USER_PATH}/groups/?$", views.UserGroups.as_view(), name="user-groups"),
     re_path(
@@ -589,6 +638,11 @@ urlpatterns = [
     # books
     re_path(rf"{BOOK_PATH}(.json)?/?$", views.Book.as_view(), name="book"),
     re_path(rf"{BOOK_PATH}{regex.SLUG}/?$", views.Book.as_view(), name="book"),
+    re_path(
+        r"^series/by/(?P<author_id>\d+)/?$",
+        views.BookSeriesBy.as_view(),
+        name="book-series-by",
+    ),
     re_path(
         rf"{BOOK_PATH}/(?P<user_statuses>review|comment|quote)/?$",
         views.Book.as_view(),
