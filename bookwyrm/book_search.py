@@ -19,14 +19,14 @@ def search(query, min_confidence=0, filters=None, return_first=False):
 
 
 def search_user_shelves(
-    query, user, min_confidence=0, filters=None, return_first=False
+        query, user, min_confidence=0, filters=None, return_first=False, start=None
 ):
     filters = (filters or []) + [Q(shelfbook__user=user)]
-    return _generic_search(query, min_confidence, filters, return_first, dedup=False)
+    return _generic_search(query, min_confidence, filters, return_first, dedup=False, start=start)
 
 
 def _generic_search(
-    query, min_confidence=0, filters=None, return_first=False, dedup=True
+        query, min_confidence=0, filters=None, return_first=False, dedup=True, start=None
 ):
     if not query:
         return []
@@ -36,13 +36,13 @@ def _generic_search(
     # first, try searching unqiue identifiers
     # unique identifiers never have spaces, title/author usually do
     if not " " in query:
-        results = search_identifiers(query, *filters, return_first=return_first)
+        results = search_identifiers(query, *filters, return_first=return_first, start=start)
 
     # if there were no identifier results...
     if not results:
         # then try searching title/author
         results = search_title_author(
-            query, min_confidence, *filters, return_first=return_first
+            query, min_confidence, *filters, return_first=return_first, start=start
         )
     return results
 
@@ -79,7 +79,7 @@ def format_search_result(search_result):
     ).json()
 
 
-def search_identifiers(query, *filters, return_first=False):
+def search_identifiers(query, *filters, return_first=False, start=None):
     """tries remote_id, isbn; defined as dedupe fields on the model"""
     if connectors.maybe_isbn(query):
         # Oh did you think the 'S' in ISBN stood for 'standard'?
@@ -91,7 +91,8 @@ def search_identifiers(query, *filters, return_first=False):
         for f in models.Edition._meta.get_fields()
         if hasattr(f, "deduplication_field") and f.deduplication_field
     ]
-    results = models.Edition.objects.filter(
+    objects = start or models.Edition.objects
+    results = objects.filter(
         *filters, reduce(operator.or_, (Q(**f) for f in or_filters))
     ).distinct()
 
@@ -101,13 +102,14 @@ def search_identifiers(query, *filters, return_first=False):
 
 
 def search_title_author(
-    query, min_confidence, *filters, return_first=False, dedup=True
+        query, min_confidence, *filters, return_first=False, dedup=True, start=None
 ):
 
     """searches for title and author"""
     query = SearchQuery(query, config="simple") | SearchQuery(query, config="english")
+    objects = start or models.Edition.objects
     results = (
-        models.Edition.objects.filter(*filters, search_vector=query)
+        objects.filter(*filters, search_vector=query)
         .annotate(rank=SearchRank(F("search_vector"), query))
         .filter(rank__gt=min_confidence)
         .order_by("-rank")

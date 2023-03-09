@@ -72,7 +72,7 @@ class Shelf(View):
             "start_date"
         )
 
-        books = book_search.search_user_shelves(books, user, filters=search)
+        books = book_search.search_user_shelves(search, user, start=books)
 
         books = books.annotate(shelved_date=Max("shelfbook__shelved_date"))
         books = books.annotate(
