@@ -4,7 +4,8 @@ from functools import reduce
 import operator
 
 from django.contrib.postgres.search import SearchRank, SearchQuery
-from django.db.models import F, Q
+from django.db.models import F, Q, Subquery, Window
+from django.db.models.functions import Rank
 
 from bookwyrm import models
 from bookwyrm import connectors
@@ -19,14 +20,16 @@ def search(query, min_confidence=0, filters=None, return_first=False):
 
 
 def search_user_shelves(
-        query, user, min_confidence=0, filters=None, return_first=False, start=None
+    query, user, min_confidence=0, filters=None, return_first=False, start=None
 ):
     filters = (filters or []) + [Q(shelfbook__user=user)]
-    return _generic_search(query, min_confidence, filters, return_first, dedup=False, start=start)
+    return _generic_search(
+        query, min_confidence, filters, return_first, dedup=False, start=start
+    )
 
 
 def _generic_search(
-        query, min_confidence=0, filters=None, return_first=False, dedup=True, start=None
+    query, min_confidence=0, filters=None, return_first=False, dedup=True, start=None
 ):
     if not query:
         return []
@@ -36,7 +39,9 @@ def _generic_search(
     # first, try searching unique identifiers
     # unique identifiers never have spaces, title/author usually do
     if not " " in query:
-        results = search_identifiers(query, *filters, return_first=return_first, start=start)
+        results = search_identifiers(
+            query, *filters, return_first=return_first, start=start
+        )
 
     # if there were no identifier results...
     if not results:
@@ -102,12 +107,13 @@ def search_identifiers(query, *filters, return_first=False, start=None):
 
 
 def search_title_author(
-        query, min_confidence, *filters, return_first=False, dedup=True, start=None
+    query, min_confidence, *filters, return_first=False, dedup=True, start=None
 ):
 
     """searches for title and author"""
     query = SearchQuery(query, config="simple") | SearchQuery(query, config="english")
     objects = start or models.Edition.objects
+
     results = (
         objects.filter(*filters, search_vector=query)
         .annotate(rank=SearchRank(F("search_vector"), query))
@@ -116,24 +122,25 @@ def search_title_author(
     )
 
     if not dedup:
-        return list(results)
+        return results
 
-    # when there are multiple editions of the same work, pick the closest
-    editions_of_work = results.values_list("parent_work__id", flat=True).distinct()
-
-    # filter out multiple editions of the same work
-    list_results = []
-    for work_id in set(editions_of_work[:30]):
-        result = (
-            results.filter(parent_work=work_id)
-            .order_by("-rank", "-edition_rank")
-            .first()
+    subquery = models.Edition.objects.annotate(
+        search_rank=Subquery(results.values("rank")),
+    ).annotate(
+        rank=Window(
+            expression=Rank(),
+            partition_by=[F("parent_work__id")],
+            order_by=F("search_rank").asc(),
         )
+    )
 
-        if return_first:
-            return result
-        list_results.append(result)
-    return list_results
+    books = models.Edition.objects.annotate(
+        rank=Subquery(subquery.values("rank"))
+    ).filter(rank=1)
+
+    if return_first:
+        return books.first()
+    return books
 
 
 @dataclass
